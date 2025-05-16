@@ -18,21 +18,35 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MoreVertical } from "lucide-react";
 
+interface Document {
+  id: number;
+  type: string;
+  period: string;
+  fileData: string;
+  uploadedAt: string;
+  userId: number;
+}
+
+interface User {
+  id: number;
+  name: string;
+}
+
 export function DocumentList() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const isAdmin = user?.role === 'admin';
-  const [selectedDocument, setSelectedDocument] = useState<any>(null);
+  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   
   // Carica documenti
-  const { data: documents = [], isLoading } = useQuery({
+  const { data: documents = [], isLoading } = useQuery<Document[]>({
     queryKey: ["/api/documents"],
   });
   
   // Carica informazioni utenti per mostrare i nomi (solo per admin)
-  const { data: users = [] } = useQuery({
+  const { data: users = [] } = useQuery<User[]>({
     queryKey: ["/api/users"],
     enabled: isAdmin,
   });
@@ -40,10 +54,10 @@ export function DocumentList() {
   // Filtra documenti in base al ruolo
   const filteredDocuments = isAdmin
     ? documents
-    : documents.filter((doc: any) => doc.userId === user?.id);
+    : documents.filter((doc) => doc.userId === user?.id);
     
   // Ordina per data di caricamento (più recenti prima)
-  const sortedDocuments = [...filteredDocuments].sort((a: any, b: any) => 
+  const sortedDocuments = [...filteredDocuments].sort((a, b) => 
     new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
   );
   
@@ -67,10 +81,10 @@ export function DocumentList() {
   });
   
   // Funzione per scaricare un documento
-  const handleDownload = (document: any) => {
+  const handleDownload = (document: Document) => {
     const { type, period, fileData, userId } = document;
     const employeeName = isAdmin 
-      ? users.find((u: any) => u.id === userId)?.name || `Utente ${userId}`
+      ? users.find((u) => u.id === userId)?.name || `Utente ${userId}`
       : user?.name || "";
       
     let filename = "";
@@ -95,12 +109,12 @@ export function DocumentList() {
   // Funzione per ottenere il nome dell'utente (solo per admin)
   const getUserName = (userId: number) => {
     if (!isAdmin) return "";
-    const user = users.find((u: any) => u.id === userId);
+    const user = users.find((u) => u.id === userId);
     return user ? user.name : `Utente ${userId}`;
   };
   
   // Funzione per preview documento
-  const handlePreview = (document: any) => {
+  const handlePreview = (document: Document) => {
     setSelectedDocument(document);
     setPreviewOpen(true);
   };
@@ -160,7 +174,7 @@ export function DocumentList() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {sortedDocuments.map((doc: any) => (
+            {sortedDocuments.map((doc) => (
               <div 
                 key={doc.id} 
                 className="p-4 border rounded-md"

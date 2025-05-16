@@ -28,6 +28,20 @@ import { useToast } from "@/hooks/use-toast";
 import { formatDate } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 
+// Define TimeOffRequest interface
+interface TimeOffRequest {
+  id: number;
+  userId: number;
+  type: string;
+  duration: string;
+  startDate: string;
+  endDate: string;
+  status: string;
+  reason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Form schema for time off request
 const timeOffSchema = z.object({
   type: z.enum(["vacation", "personal", "sick"]),
@@ -47,7 +61,7 @@ export function TimeOffRequest() {
   const { user } = useAuth();
   
   // Fetch user's time off requests
-  const { data: timeOffRequests = [], isLoading } = useQuery({
+  const { data: timeOffRequests = [], isLoading } = useQuery<TimeOffRequest[]>({
     queryKey: ["/api/time-off-requests"],
   });
   
@@ -245,13 +259,13 @@ export function TimeOffRequest() {
 }
 
 export function TimeOffList() {
-  const { data: timeOffRequests = [], isLoading } = useQuery({
+  const { data: timeOffRequests = [], isLoading } = useQuery<TimeOffRequest[]>({
     queryKey: ["/api/time-off-requests"],
   });
   
   // Sort requests by date (newest first)
   const sortedRequests = [...timeOffRequests].sort(
-    (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
   
   // Format request type
@@ -316,7 +330,7 @@ export function TimeOffList() {
           </div>
         ) : (
           <div className="space-y-3">
-            {sortedRequests.map((request: any) => {
+            {sortedRequests.map((request) => {
               const status = formatStatus(request.status);
               
               return (

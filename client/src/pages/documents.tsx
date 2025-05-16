@@ -8,13 +8,20 @@ import { DocumentUpload } from "@/components/documents/document-upload";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { AnimatedContainer } from "@/components/ui/animated-container";
 
+// Define User interface
+interface User {
+  id: number;
+  name: string;
+  role: string;
+}
+
 export default function Documents() {
   const { user, isLoading, isAuthenticated } = useAuth();
   const [, navigate] = useLocation();
   const isAdmin = user?.role === "admin";
   
   // Fetch users (for admin to select during upload)
-  const { data: users = [] } = useQuery({
+  const { data: users = [] } = useQuery<User[]>({
     queryKey: ["/api/users"],
     enabled: isAdmin,
   });

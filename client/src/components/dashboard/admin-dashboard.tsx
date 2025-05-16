@@ -17,29 +17,56 @@ import {
 import { apiRequest } from "@/lib/queryClient";
 import { RecentActivities } from "./recent-activities";
 
+// Define types for the data
+interface User {
+  id: number;
+  name: string;
+  isActive: boolean;
+}
+
+interface TimeOffRequest {
+  id: number;
+  userId: number;
+  status: string;
+  type: string;
+  startDate: string;
+  endDate: string;
+}
+
+interface Schedule {
+  id: number;
+}
+
+interface Shift {
+  id: number;
+  type: string;
+  startTime: string;
+  endTime: string;
+}
+
 export function AdminDashboard() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data: users = [] } = useQuery({
+  const { data: users = [] } = useQuery<User[]>({
     queryKey: ["/api/users"],
   });
 
-  const { data: timeOffRequests = [] } = useQuery({
+  const { data: timeOffRequests = [] } = useQuery<TimeOffRequest[]>({
     queryKey: ["/api/time-off-requests"],
   });
 
-  const { data: currentSchedule } = useQuery({
+  const { data: currentSchedule } = useQuery<Schedule>({
     queryKey: ["/api/schedules"],
   });
   
-  const { data: allShifts = [] } = useQuery({
+  const { data: allShifts = [] } = useQuery<Shift[]>({
     queryKey: [`/api/schedules/${currentSchedule?.id}/shifts`],
     enabled: !!currentSchedule?.id,
   });
 
   const pendingRequests = timeOffRequests.filter(
-    (req: any) => req.status === "pending"
+    (req) => req.status === "pending"
   );
 
   // Mutations for approving/rejecting requests
@@ -67,10 +94,10 @@ export function AdminDashboard() {
   endOfWeek.setDate(today.getDate() - today.getDay() + 7); // Domenica
   
   // Current stats
-  const activeEmployees = users.filter((user: any) => user.isActive).length;
+  const activeEmployees = users.filter((user) => user.isActive).length;
   
   // Conta i dipendenti in ferie nella settimana corrente
-  const employeesOnVacation = timeOffRequests.filter((req: any) => {
+  const employeesOnVacation = timeOffRequests.filter((req) => {
     // Verifica che sia approvata e sia di tipo vacanza
     if (req.status !== "approved" || req.type !== "vacation") return false;
     
@@ -82,11 +109,12 @@ export function AdminDashboard() {
       (startDate <= endOfWeek && endDate >= startOfWeek) || 
       (endDate >= startOfWeek && startDate <= endOfWeek)
     );
-  }).reduce((acc: Set<number>, req: any) => {
+  })
+  .reduce<Set<number>>((acc, req) => {
     // Usa un Set per evitare di contare più volte lo stesso dipendente
     acc.add(req.userId);
     return acc;
-  }, new Set()).size;
+  }, new Set<number>()).size;
 
   // Calcola le ore totali per fasce orarie
   const shiftDistributionData = (() => {
@@ -100,7 +128,7 @@ export function AdminDashboard() {
     
     // Conta le ore per fasce orarie
     const morningHours = calculateTotalWorkHours(
-      allShifts.filter((shift: any) => 
+      allShifts.filter((shift) => 
         shift.type === "work" && 
         shift.startTime >= "04:00" && 
         shift.startTime < "12:00"
@@ -108,7 +136,7 @@ export function AdminDashboard() {
     );
     
     const afternoonHours = calculateTotalWorkHours(
-      allShifts.filter((shift: any) => 
+      allShifts.filter((shift) => 
         shift.type === "work" && 
         shift.startTime >= "12:00" && 
         shift.startTime < "18:00"
@@ -116,7 +144,7 @@ export function AdminDashboard() {
     );
     
     const eveningHours = calculateTotalWorkHours(
-      allShifts.filter((shift: any) => 
+      allShifts.filter((shift) => 
         shift.type === "work" && 
         shift.startTime >= "18:00"
       )
@@ -183,7 +211,7 @@ export function AdminDashboard() {
                 <p className="text-gray-500 text-sm">Ore Programmate</p>
                 <p className="text-2xl font-medium">{
                   calculateTotalWorkHours(
-                    allShifts.filter((shift: any) => shift.type === "work")
+                    allShifts.filter((shift) => shift.type === "work")
                   ).toFixed(0)
                 }</p>
               </div>
@@ -237,7 +265,7 @@ export function AdminDashboard() {
               </div>
             ) : (
               <div className="divide-y">
-                {pendingRequests.slice(0, 3).map((request: any) => (
+                {pendingRequests.slice(0, 3).map((request) => (
                   <div key={request.id} className="py-3">
                     <div className="flex justify-between">
                       <div>
@@ -251,7 +279,7 @@ export function AdminDashboard() {
                         <p className="text-xs text-gray-500">
                           Da:{" "}
                           <span className="font-medium">
-                            {users.find((u: any) => u.id === request.userId)?.name || "Dipendente"}
+                            {users.find((u) => u.id === request.userId)?.name || "Dipendente"}
                           </span>
                         </p>
                         <p className="text-xs text-gray-500">

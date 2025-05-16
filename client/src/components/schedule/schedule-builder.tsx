@@ -9,12 +9,75 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { generateTimeSlots, formatHours } from "@/lib/utils";
 
+interface ShiftData {
+  scheduleId: number;
+  userId: number;
+  day: string;
+  startTime: string;
+  endTime: string;
+  type: string;
+  notes: string;
+  area: string;
+}
+
+interface ShiftBlock {
+  start: number;
+  end: number;
+  type: string;
+}
+
+interface User {
+  id: number;
+  name: string;
+  role: string;
+  isActive: boolean;
+}
+
+interface Shift {
+  id: number;
+  userId: number;
+  day: string;
+  startTime: string;
+  endTime: string;
+  type: string;
+  notes?: string;
+}
+
+interface TimeOffRequest {
+  id: number;
+  userId: number;
+  status: string;
+  type: string;
+  startDate: string;
+  endDate: string;
+  duration: string;
+}
+
+interface CellData {
+  type: string;
+  shiftId: number | null;
+  isTimeOff?: boolean;
+  requestId?: number;
+}
+
+interface UserDayData {
+  cells: CellData[];
+  notes: string;
+  total: number;
+}
+
+interface GridData {
+  [day: string]: {
+    [userId: string]: UserDayData;
+  };
+}
+
 type ScheduleBuilderProps = {
   scheduleId: number | null;
-  users: any[];
+  users: User[];
   startDate: Date;
   endDate: Date;
-  shifts: any[];
+  shifts: Shift[];
   isPublished: boolean;
   onPublish: () => void;
   onAutoGenerate: () => void;
@@ -37,7 +100,7 @@ export function ScheduleBuilder({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [activeDay, setActiveDay] = useState(0);
-  const [gridData, setGridData] = useState<any>({});
+  const [gridData, setGridData] = useState<GridData>({});
   const timeSlots = generateTimeSlots(4, 24);
   
   // Initialize days of the week
@@ -61,7 +124,7 @@ export function ScheduleBuilder({
   
   // Create shift mutation
   const createShiftMutation = useMutation({
-    mutationFn: (shiftData: any) => 
+    mutationFn: (shiftData: ShiftData) => 
       apiRequest("POST", "/api/shifts", shiftData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/schedules/${scheduleId}/shifts`] });
@@ -81,7 +144,7 @@ export function ScheduleBuilder({
   
   // Update shift mutation
   const updateShiftMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: any }) => 
+    mutationFn: ({ id, data }: { id: number; data: Partial<ShiftData> }) => 
       apiRequest("PATCH", `/api/shifts/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/schedules/${scheduleId}/shifts`] });
@@ -120,9 +183,9 @@ export function ScheduleBuilder({
   });
   
   // Fetch approved time-off requests
-  const { data: timeOffRequests = [] } = useQuery({
+  const { data: timeOffRequests = [] } = useQuery<TimeOffRequest[]>({
     queryKey: ["/api/time-off-requests"],
-    select: (data: any) => data.filter((req: any) => req.status === "approved"),
+    select: (data) => data.filter((req) => req.status === "approved"),
   });
 
   // Evitiamo re-render non necessari
@@ -139,7 +202,7 @@ export function ScheduleBuilder({
       console.log("Rendering grid data with shifts:", shifts.length);
       isFirstRender.current = false;
       
-      const newGridData: any = {};
+      const newGridData: GridData = {};
     
       // Initialize empty grid for all users and time slots
       weekDays.forEach(day => {
@@ -199,10 +262,10 @@ export function ScheduleBuilder({
     if (!timeOffRequests || timeOffRequests.length === 0 || !gridData || Object.keys(gridData).length === 0) return;
     
     // Make a deep copy of gridData to prevent issues
-    const newGridData = JSON.parse(JSON.stringify(gridData));
+    const newGridData = JSON.parse(JSON.stringify(gridData)) as GridData;
     let hasChanges = false;
     
-    timeOffRequests.forEach((request: any) => {
+    timeOffRequests.forEach((request) => {
       const userId = request.userId;
       const startDate = new Date(request.startDate);
       const endDate = new Date(request.endDate);
@@ -219,7 +282,8 @@ export function ScheduleBuilder({
               newGridData[day.name][userId].cells = newGridData[day.name][userId].cells.map(() => ({
                 type: request.type === "vacation" ? "vacation" : "leave",
                 isTimeOff: true,
-                requestId: request.id
+                requestId: request.id,
+                shiftId: null
               }));
               newGridData[day.name][userId].notes = `${request.type === "vacation" ? "Ferie" : "Permesso"} approvato`;
             } else if (request.duration === "morning") {
@@ -229,7 +293,8 @@ export function ScheduleBuilder({
                 newGridData[day.name][userId].cells[i] = {
                   type: request.type === "vacation" ? "vacation" : "leave",
                   isTimeOff: true,
-                  requestId: request.id
+                  requestId: request.id,
+                  shiftId: null
                 };
               }
               newGridData[day.name][userId].notes = `${request.type === "vacation" ? "Ferie" : "Permesso"} mattina`;
@@ -240,7 +305,8 @@ export function ScheduleBuilder({
                 newGridData[day.name][userId].cells[i] = {
                   type: request.type === "vacation" ? "vacation" : "leave",
                   isTimeOff: true,
-                  requestId: request.id
+                  requestId: request.id,
+                  shiftId: null
                 };
               }
               newGridData[day.name][userId].notes = `${request.type === "vacation" ? "Ferie" : "Permesso"} pomeriggio`;
@@ -317,7 +383,7 @@ export function ScheduleBuilder({
     } else if (newType !== "") {
       // Creating a new shift
       // Create new shift with selected time slot
-      const newShiftData = {
+      const newShiftData: ShiftData = {
         scheduleId,
         userId,
         day,
@@ -369,62 +435,65 @@ export function ScheduleBuilder({
     const nextDay = weekDays[(activeDay + 1) % 7].name;
     
     // Copy all shifts from current day to next day
-    Object.entries(gridData[currentDay]).forEach(([userId, userData]: [string, any]) => {
+    Object.entries(gridData[currentDay]).forEach(([userId, userData]) => {
       const userIdNum = parseInt(userId);
       
-      // Find continuous blocks of cells with the same type
-      let currentBlock: { start: number; end: number; type: string } | null = null;
+      // Define local variables with explicit types to avoid type inference issues
+      const cellArray: CellData[] = userData.cells;
+      const userNotes: string = userData.notes;
       
-      userData.cells.forEach((cell: any, index: number) => {
-        if (cell.type !== "") {
-          if (!currentBlock || currentBlock.type !== cell.type) {
-            // If we had a previous block, save it
-            if (currentBlock) {
-              createShiftMutation.mutate({
-                scheduleId,
-                userId: userIdNum,
-                day: nextDay,
-                startTime: timeSlots[currentBlock.start],
-                endTime: timeSlots[currentBlock.end],  // Rimuovo il +1 per evitare di aggiungere 30 minuti in più
-                type: currentBlock.type,
-                notes: userData.notes,
-                area: ""
-              });
-            }
-            // Start a new block
-            currentBlock = { start: index, end: index, type: cell.type };
-          } else {
-            // Extend the current block
-            currentBlock.end = index;
-          }
-        } else if (currentBlock) {
-          // End of a block
+      // Find continuous blocks of cells with the same type
+      let startIdx: number | null = null;
+      let endIdx: number | null = null;
+      let cellType: string = "";
+      
+      const createShift = (start: number, end: number, type: string) => {
+        if (scheduleId) {
           createShiftMutation.mutate({
             scheduleId,
             userId: userIdNum,
             day: nextDay,
-            startTime: timeSlots[currentBlock.start],
-            endTime: timeSlots[currentBlock.end],  // Rimuovo il +1 per evitare di aggiungere 30 minuti in più
-            type: currentBlock.type,
-            notes: userData.notes,
+            startTime: timeSlots[start],
+            endTime: timeSlots[end],
+            type: type,
+            notes: userNotes,
             area: ""
           });
-          currentBlock = null;
         }
-      });
+      };
       
-      // Don't forget the last block if it extends to the end
-      if (currentBlock) {
-        createShiftMutation.mutate({
-          scheduleId,
-          userId: userIdNum,
-          day: nextDay,
-          startTime: timeSlots[currentBlock.start],
-          endTime: timeSlots[currentBlock.end],  // Rimuovo il +1 per evitare di aggiungere 30 minuti in più
-          type: currentBlock.type,
-          notes: userData.notes,
-          area: ""
-        });
+      // Process each cell to find continuous blocks
+      for (let i = 0; i < cellArray.length; i++) {
+        const cell = cellArray[i];
+        
+        if (cell.type !== "") {
+          if (startIdx === null) {
+            // Start a new block
+            startIdx = i;
+            endIdx = i + 1;
+            cellType = cell.type;
+          } else if (cellType !== cell.type) {
+            // End previous block and start a new one
+            createShift(startIdx, endIdx!, cellType);
+            startIdx = i;
+            endIdx = i + 1;
+            cellType = cell.type;
+          } else {
+            // Extend current block
+            endIdx = i + 1;
+          }
+        } else if (startIdx !== null) {
+          // End of a block (empty cell after non-empty)
+          createShift(startIdx, endIdx!, cellType);
+          startIdx = null;
+          endIdx = null;
+          cellType = "";
+        }
+      }
+      
+      // Handle the last block if it goes to the end
+      if (startIdx !== null && endIdx !== null) {
+        createShift(startIdx, endIdx, cellType);
       }
     });
     
@@ -539,7 +608,7 @@ export function ScheduleBuilder({
                           <td className="name-cell">{user.name}</td>
                           {gridData[day.name] && 
                             gridData[day.name][user.id] &&
-                            gridData[day.name][user.id].cells.map((cell: any, index: number) => (
+                            gridData[day.name][user.id].cells.map((cell, index) => (
                               <td 
                                 key={index}
                                 className={

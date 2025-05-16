@@ -5,6 +5,26 @@ import { insertDocumentSchema } from "@shared/schema";
 
 const router = Router();
 
+// Define User interface to extend Express.User
+interface User {
+  id: number;
+  role: string;
+  name?: string;
+  email?: string;
+}
+
+// Declare module augmentation for Express Request
+declare global {
+  namespace Express {
+    interface User {
+      id: number;
+      role: string;
+      name?: string;
+      email?: string;
+    }
+  }
+}
+
 // Schema di validazione per il caricamento di un documento
 const uploadDocumentSchema = z.object({
   type: z.enum(["payslip", "tax_document"]),

@@ -6,6 +6,26 @@ import { useToast } from "@/hooks/use-toast";
 import { formatDate } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 
+// Define interfaces for the data
+interface User {
+  id: number;
+  name: string;
+  username: string;
+}
+
+interface TimeOffRequest {
+  id: number;
+  userId: number;
+  status: string;
+  type: string;
+  startDate: string;
+  endDate: string;
+  createdAt: string;
+  updatedAt: string;
+  reason?: string;
+  duration: string;
+}
+
 export function RequestApproval() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -13,12 +33,12 @@ export function RequestApproval() {
   const requestsPerPage = 5;
   
   // Fetch pending time off requests
-  const { data: requests = [], isLoading } = useQuery({
+  const { data: requests = [], isLoading } = useQuery<TimeOffRequest[]>({
     queryKey: ["/api/time-off-requests"],
   });
   
   // Fetch all users for displaying names
-  const { data: users = [] } = useQuery({
+  const { data: users = [] } = useQuery<User[]>({
     queryKey: ["/api/users"],
   });
   
@@ -63,11 +83,11 @@ export function RequestApproval() {
   });
   
   // Filter pending requests
-  const pendingRequests = requests.filter((req: any) => req.status === "pending");
+  const pendingRequests = requests.filter((req) => req.status === "pending");
   
   // Get username from userId
   const getUserName = (userId: number) => {
-    const user = users.find((u: any) => u.id === userId);
+    const user = users.find((u) => u.id === userId);
     return user ? user.name : "Utente sconosciuto";
   };
   
@@ -137,7 +157,7 @@ export function RequestApproval() {
           </div>
         ) : (
           <div className="space-y-4">
-            {paginatedRequests.map((request: any) => (
+            {paginatedRequests.map((request) => (
               <div 
                 key={request.id}
                 className="border rounded-md p-4"
@@ -251,24 +271,24 @@ export function RequestApproval() {
 }
 
 export function CompletedRequests() {
-  const { data: requests = [], isLoading } = useQuery({
+  const { data: requests = [], isLoading } = useQuery<TimeOffRequest[]>({
     queryKey: ["/api/time-off-requests"],
   });
   
   // Fetch all users for displaying names
-  const { data: users = [] } = useQuery({
+  const { data: users = [] } = useQuery<User[]>({
     queryKey: ["/api/users"],
   });
   
   // Filter completed requests (approved or rejected)
   const completedRequests = requests
-    .filter((req: any) => req.status === "approved" || req.status === "rejected")
-    .sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .filter((req) => req.status === "approved" || req.status === "rejected")
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
     .slice(0, 5); // Show only the 5 most recent
   
   // Get username from userId
   const getUserName = (userId: number) => {
-    const user = users.find((u: any) => u.id === userId);
+    const user = users.find((u) => u.id === userId);
     return user ? user.name : "Utente sconosciuto";
   };
   
@@ -316,7 +336,7 @@ export function CompletedRequests() {
           </div>
         ) : (
           <div className="space-y-3">
-            {completedRequests.map((request: any) => {
+            {completedRequests.map((request) => {
               const status = formatStatus(request.status);
               
               return (

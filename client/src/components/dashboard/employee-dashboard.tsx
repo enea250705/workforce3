@@ -6,33 +6,80 @@ import { formatDate, formatHours, calculateTotalWorkHours, convertToHours } from
 import { downloadPdf, generatePayslipFilename, generateTaxDocFilename } from "@/lib/pdf-utils";
 import { Link } from "wouter";
 
+// Define types for the data
+interface User {
+  id: number;
+  username: string;
+  name: string;
+  email: string;
+  role: string;
+  isActive: boolean;
+}
+
+interface Schedule {
+  id: number;
+  startDate: string;
+  endDate: string;
+  isPublished: boolean;
+}
+
+interface Shift {
+  id: number;
+  day: string;
+  type: string;
+  startTime: string;
+  endTime: string;
+  area?: string;
+}
+
+interface TimeOffRequest {
+  id: number;
+  userId: number;
+  status: string;
+  type: string;
+  startDate: string;
+  endDate: string;
+}
+
+interface Document {
+  id: number;
+  type: string;
+  period: string;
+  uploadedAt: string;
+  fileData: string;
+}
+
+interface ShiftsByDay {
+  [key: string]: Shift[];
+}
+
 export function EmployeeDashboard() {
   const { user } = useAuth();
   
-  const { data: mySchedule } = useQuery({
+  const { data: mySchedule } = useQuery<Schedule>({
     queryKey: ["/api/schedules"],
   });
   
-  const { data: myShifts = [] } = useQuery({
+  const { data: myShifts = [] } = useQuery<Shift[]>({
     queryKey: [`/api/schedules/${mySchedule?.id}/shifts`],
     enabled: !!mySchedule?.id,
   });
   
-  const { data: myTimeOffRequests = [] } = useQuery({
+  const { data: myTimeOffRequests = [] } = useQuery<TimeOffRequest[]>({
     queryKey: ["/api/time-off-requests"],
   });
   
-  const { data: myDocuments = [] } = useQuery({
+  const { data: myDocuments = [] } = useQuery<Document[]>({
     queryKey: ["/api/documents"],
   });
   
   // Filter time off requests
-  const pendingRequests = myTimeOffRequests.filter((req: any) => req.status === "pending");
-  const approvedRequests = myTimeOffRequests.filter((req: any) => req.status === "approved");
+  const pendingRequests = myTimeOffRequests.filter((req) => req.status === "pending");
+  const approvedRequests = myTimeOffRequests.filter((req) => req.status === "approved");
   
   // Calcolo delle ore totali della settimana corrente utilizzando la funzione centralizzata
   const totalHoursThisWeek = calculateTotalWorkHours(
-    myShifts.filter((shift: any) => shift.type === "work")
+    myShifts.filter((shift) => shift.type === "work")
   );
   
   // Get day names for the week
@@ -42,13 +89,13 @@ export function EmployeeDashboard() {
   };
   
   // Group shifts by day and remove duplicates based on startTime-endTime combination
-  const shiftsByDay = myShifts.reduce((acc: any, shift: any) => {
+  const shiftsByDay = myShifts.reduce<ShiftsByDay>((acc, shift) => {
     if (!acc[shift.day]) {
       acc[shift.day] = [];
     }
     
     // Check if this exact time slot already exists for this day to avoid duplicates
-    const existingShiftIndex = acc[shift.day].findIndex((s: any) => 
+    const existingShiftIndex = acc[shift.day].findIndex((s) => 
       s.startTime === shift.startTime && 
       s.endTime === shift.endTime && 
       s.type === shift.type
@@ -64,7 +111,7 @@ export function EmployeeDashboard() {
   
   // Mostra tutti i giorni della settimana, non solo i primi due
   const upcomingShifts = Object.entries(shiftsByDay)
-    .map(([day, shifts]) => ({ day, shifts: shifts as any[] }))
+    .map(([day, shifts]) => ({ day, shifts: shifts as Shift[] }))
     // Ordina i giorni secondo l'ordine corretto della settimana (da Lunedì a Domenica)
     .sort((a, b) => {
       const dayOrder = ["lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica"];
@@ -73,24 +120,24 @@ export function EmployeeDashboard() {
   
   // Get the number of working days (solo giorni con turni di lavoro)
   const workingDays = Object.entries(shiftsByDay)
-    .filter(([_, shifts]: [string, any[]]) => 
-      shifts.some((shift: any) => shift.type === "work")
+    .filter(([_, shifts]: [string, Shift[]]) => 
+      shifts.some((shift) => shift.type === "work")
     ).length;
   
   // Get latest documents
   const latestPayslip = myDocuments
-    .filter((doc: any) => doc.type === "payslip")
-    .sort((a: any, b: any) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0];
+    .filter((doc) => doc.type === "payslip")
+    .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0];
   
   const latestTaxDoc = myDocuments
-    .filter((doc: any) => doc.type === "tax_document")
-    .sort((a: any, b: any) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0];
+    .filter((doc) => doc.type === "tax_document")
+    .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0];
     
   // Funzioni per il download dei documenti
   const handleDownloadPayslip = () => {
     if (!latestPayslip) return;
     downloadPdf(
-      generatePayslipFilename(latestPayslip.period, user?.fullName || user?.username || ""),
+      generatePayslipFilename(latestPayslip.period, user?.name || user?.username || ""),
       latestPayslip.fileData
     );
   };
@@ -98,7 +145,7 @@ export function EmployeeDashboard() {
   const handleDownloadTaxDoc = () => {
     if (!latestTaxDoc) return;
     downloadPdf(
-      generateTaxDocFilename(latestTaxDoc.period, user?.fullName || user?.username || ""),
+      generateTaxDocFilename(latestTaxDoc.period, user?.name || user?.username || ""),
       latestTaxDoc.fileData
     );
   };
@@ -184,7 +231,7 @@ export function EmployeeDashboard() {
             </div>
           ) : (
             <div className="space-y-4">
-              {upcomingShifts.map(({ day, shifts }: any) => (
+              {upcomingShifts.map(({ day, shifts }) => (
                 <div key={day} className="border rounded-lg p-3">
                   <div className="flex justify-between items-center mb-2">
                     <h3 className="font-medium">
@@ -192,16 +239,16 @@ export function EmployeeDashboard() {
                       {day.charAt(0).toUpperCase() + day.slice(1)}
                     </h3>
                     <div className="text-xs text-gray-500 font-medium">
-                      {formatHours(calculateTotalWorkHours(shifts.filter((shift: any) => shift.type === "work")))}
+                      {formatHours(calculateTotalWorkHours(shifts.filter((shift) => shift.type === "work")))}
                     </div>
                   </div>
                   
                   {/* Raggruppa i turni per tipo */}
                   {(() => {
                     // Raggruppa i turni per tipo
-                    const workShifts = shifts.filter(s => s.type === "work");
-                    const vacationShifts = shifts.filter(s => s.type === "vacation");
-                    const leaveShifts = shifts.filter(s => s.type === "leave");
+                    const workShifts = shifts.filter((s: Shift) => s.type === "work");
+                    const vacationShifts = shifts.filter((s: Shift) => s.type === "vacation");
+                    const leaveShifts = shifts.filter((s: Shift) => s.type === "leave");
                     
                     // Ordina i turni di lavoro per orario di inizio
                     const sortedWorkShifts = [...workShifts].sort((a, b) => {
@@ -209,8 +256,8 @@ export function EmployeeDashboard() {
                     });
                     
                     // Consolida gli slot consecutivi in un unico turno
-                    const consolidatedWorkShifts = [];
-                    let currentShift = null;
+                    const consolidatedWorkShifts: Shift[] = [];
+                    let currentShift: Shift | null = null;
                     
                     for (const shift of sortedWorkShifts) {
                       if (!currentShift) {
@@ -250,10 +297,10 @@ export function EmployeeDashboard() {
                                   </p>
                                   {/* Mostra tutte le aree coinvolte se diverse */}
                                   {(() => {
-                                    const uniqueAreas = [...new Set(sortedWorkShifts
-                                      .filter(s => s.area)
-                                      .map(s => s.area)
-                                    )];
+                                    const uniqueAreas = Array.from(new Set(sortedWorkShifts
+                                      .filter((s) => s.area)
+                                      .map((s) => s.area)
+                                    ));
                                     
                                     if (uniqueAreas.length === 0) return null;
                                     
@@ -285,7 +332,7 @@ export function EmployeeDashboard() {
                         {/* Ferie */}
                         {vacationShifts.length > 0 && (
                           <div className="mb-3">
-                            {vacationShifts.map((shift: any) => (
+                            {vacationShifts.map((shift) => (
                               <div 
                                 key={shift.id}
                                 className="p-2 mb-2 rounded-md bg-red-50 border border-red-100"
@@ -307,7 +354,7 @@ export function EmployeeDashboard() {
                         {/* Permessi */}
                         {leaveShifts.length > 0 && (
                           <div className="mb-3">
-                            {leaveShifts.map((shift: any) => (
+                            {leaveShifts.map((shift) => (
                               <div 
                                 key={shift.id}
                                 className="p-2 mb-2 rounded-md bg-yellow-50 border border-yellow-100"
@@ -354,7 +401,7 @@ export function EmployeeDashboard() {
               </div>
             ) : (
               <div className="space-y-3">
-                {myTimeOffRequests.slice(0, 3).map((request: any) => (
+                {myTimeOffRequests.slice(0, 3).map((request) => (
                   <div 
                     key={request.id}
                     className="border rounded-md p-3 flex justify-between items-center"
