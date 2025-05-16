@@ -5,7 +5,7 @@ import { createServer as createViteServer, createLogger } from "vite";
 import { type Server } from "http";
 import viteConfig from "../vite.config";
 import { nanoid } from "nanoid";
-import { resolveProjectPath } from "./fix-dirname";
+import { resolveProjectPath } from "./fix-dirname.ts";
 
 const viteLogger = createLogger();
 

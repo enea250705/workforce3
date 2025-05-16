@@ -1,7 +1,7 @@
 // Load environment variables first
 import './env';
 // Load dirname fix first
-import './fix-dirname';
+import './fix-dirname.ts';
 
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
